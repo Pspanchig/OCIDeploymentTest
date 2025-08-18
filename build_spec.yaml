@@ -1,21 +1,24 @@
 version: 0.1
 component: build
+timeoutInSeconds: 1800
 runAs: root
 shell: bash
+
 env:
   variables:
-    NODE_VERSION: "18"
-  exportedVariables:
-    - ARTIFACT_NAME
+    NODE_VERSION: "18"              # or 20
+    BUCKET_NAME: "my-react-site"    # <-- your bucket
+    REGION: "us-ashburn-1"          # <-- your region
 
 steps:
-  - name: Node
+  - name: Install Node.js
     type: Command
     command: |
-      dnf module -y enable nodejs:${NODE_VERSION}
-      dnf module -y install nodejs:${NODE_VERSION}
+      dnf -y module enable nodejs:${NODE_VERSION}
+      dnf -y module install nodejs:${NODE_VERSION}
+      node -v && npm -v
 
-  - name: Install
+  - name: Install deps
     type: Command
     command: npm ci
 
@@ -23,14 +26,9 @@ steps:
     type: Command
     command: npm run build
 
-  - name: Package
+  - name: Upload to Object Storage
     type: Command
     command: |
-      ARTIFACT_NAME="react-build-$(date +%s).zip"
-      (cd build && zip -r "../$ARTIFACT_NAME" .)
-
-artifacts:
-  outputArtifacts:
-    - name: web-dist         # logical name inside DevOps
-      type: BINARY
-      location: $ARTIFACT_NAME
+      NS=$(oci os ns get --query 'data' --raw-output)
+      oci os object bulk-delete -bn "$BUCKET_NAME" --force --quiet || true
+      oci os object bulk-upload -bn "$BUCKET_NAME" --src-dir build --overwrite --content-type auto
