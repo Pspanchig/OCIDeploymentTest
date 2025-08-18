@@ -1,0 +1,36 @@
+version: 0.1
+component: build
+runAs: root
+shell: bash
+env:
+  variables:
+    NODE_VERSION: "18"
+  exportedVariables:
+    - ARTIFACT_NAME
+
+steps:
+  - name: Node
+    type: Command
+    command: |
+      dnf module -y enable nodejs:${NODE_VERSION}
+      dnf module -y install nodejs:${NODE_VERSION}
+
+  - name: Install
+    type: Command
+    command: npm ci
+
+  - name: Build
+    type: Command
+    command: npm run build
+
+  - name: Package
+    type: Command
+    command: |
+      ARTIFACT_NAME="react-build-$(date +%s).zip"
+      (cd build && zip -r "../$ARTIFACT_NAME" .)
+
+artifacts:
+  outputArtifacts:
+    - name: web-dist         # logical name inside DevOps
+      type: BINARY
+      location: $ARTIFACT_NAME
