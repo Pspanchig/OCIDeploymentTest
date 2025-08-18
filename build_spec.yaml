@@ -1,34 +1,14 @@
 version: 0.1
 component: build
-timeoutInSeconds: 1800
-runAs: root
+timeoutInSeconds: 1200
 shell: bash
-
-env:
-  variables:
-    NODE_VERSION: "18"              # or 20
-    BUCKET_NAME: "my-react-site"    # <-- your bucket
-    REGION: "us-ashburn-1"          # <-- your region
-
 steps:
-  - name: Install Node.js
-    type: Command
+  - type: Command
+    name: Build image
     command: |
-      dnf -y module enable nodejs:${NODE_VERSION}
-      dnf -y module install nodejs:${NODE_VERSION}
-      node -v && npm -v
-
-  - name: Install deps
-    type: Command
-    command: npm ci
-
-  - name: Build
-    type: Command
-    command: npm run build
-
-  - name: Upload to Object Storage
-    type: Command
-    command: |
-      NS=$(oci os ns get --query 'data' --raw-output)
-      oci os object bulk-delete -bn "$BUCKET_NAME" --force --quiet || true
-      oci os object bulk-upload -bn "$BUCKET_NAME" --src-dir build --overwrite --content-type auto
+      docker build -t $IMAGE_NAME .
+      docker push  $IMAGE_NAME
+outputArtifacts:
+  - name: react-image
+    type: DOCKER_IMAGE
+    location: $IMAGE_NAME
