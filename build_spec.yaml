@@ -6,11 +6,8 @@ shell: bash
 
 env:
   variables:
-    # ── adjust these ─────────────────────────────────────────────
-    NODE_VERSION: "22"              # or "20" if your app needs it
-    BUCKET_NAME: "my-react-site"    # your Object Storage bucket
-    # REGION is optional; CLI reads it from instance metadata when using resource principals
-    # ────────────────────────────────────────────────────────────
+    NODE_MAJOR: "22"               # 18/20/22 según tu proyecto
+    BUCKET_NAME: "my-react-site"   # bucket de Object Storage
 
 steps:
   - name: Métricas iniciales (CPU/RAM/Disco)
@@ -19,32 +16,36 @@ steps:
       set -euo pipefail
       echo "=== METRICAS INICIALES ==="
       echo "CPUs: $(nproc)"
-      echo "Memoria (MB):"
-      free -m || true
-      echo "Disco:"
-      df -h || true
-      echo "Top snapshot:"
-      top -b -n 1 | head -n 20 || true
+      echo "Memoria (MB):"; free -m || true
+      echo "Disco:"; df -h || true
+      echo "Top snapshot:"; top -b -n 1 | head -n 20 || true
 
-  - name: Instalar Node.js
+  - name: Instalar Node.js con nvm
     type: Command
     command: |
       set -euo pipefail
-      # On OL8 managed runners, Node via module streams works well
-      dnf -y module enable nodejs:${NODE_VERSION}
-      dnf -y module install nodejs:${NODE_VERSION}
+      echo "Instalando nvm + Node ${NODE_MAJOR}..."
+      curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh -o /tmp/install-nvm.sh
+      bash /tmp/install-nvm.sh
+      export NVM_DIR="$HOME/.nvm"
+      . "$NVM_DIR/nvm.sh"
+      nvm install ${NODE_MAJOR}
+      nvm alias default ${NODE_MAJOR}
+      nvm use default
       node -v && npm -v
 
   - name: Instalar dependencias
     type: Command
     command: |
       set -euo pipefail
-      npm ci
+      export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use default
+      if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
   - name: Compilar aplicación
     type: Command
     command: |
       set -euo pipefail
+      export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use default
       npm run build
 
   - name: Métricas post-build
@@ -52,42 +53,20 @@ steps:
     command: |
       set -euo pipefail
       echo "=== METRICAS POST-BUILD ==="
-      echo "Memoria (MB):"
       free -m || true
-      echo "Disco:"
       df -h || true
 
   - name: Subir a Object Storage
     type: Command
     command: |
       set -euo pipefail
-
-      # Ensure OCI CLI is available (usually preinstalled; install if missing)
-      if ! command -v oci >/dev/null 2>&1; then
-        echo "Installing OCI CLI..."
-        curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh -o /tmp/oci-install.sh
-        bash /tmp/oci-install.sh --accept-all-defaults --install-dir /usr/local/bin
-        export PATH="$PATH:/root/bin"
-      fi
-      oci --version
-
-      # Use the DevOps runner resource principal for auth
       export OCI_CLI_AUTH=resource_principal
-
-      # Sanity check auth (lists one compartment, discards output)
-      oci iam compartment list --limit 1 >/dev/null
-
-      echo "Uploading React build to bucket: ${BUCKET_NAME}"
-      # If bucket is empty this delete will no-op; ignore errors
+      # opcional: limpiar bucket antes de subir
       oci os object bulk-delete -bn "${BUCKET_NAME}" --force --quiet || true
-
-      # Upload build/ with correct content-types
       oci os object bulk-upload \
         -bn "${BUCKET_NAME}" \
         --src-dir build \
         --overwrite \
         --content-type auto \
         --verify-checksum
-
       echo "✅ Upload completed to bucket ${BUCKET_NAME}"
-
