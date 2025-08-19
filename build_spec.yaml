@@ -20,14 +20,14 @@ steps:
       echo "Disco:"; df -h || true
       echo "Top snapshot:"; top -b -n 1 | head -n 20 || true
 
-- name: Instalar Node.js
+  - name: Instalar Node.js
     type: Command
     command: |
       set -euo pipefail
       echo "Installing Node.js ${NODE_MAJOR}..."
-      # Add NodeSource repo for RHEL/Oracle-Linux family
+      # Add NodeSource repo for RHEL/Oracle Linux family
       curl -fsSL "https://rpm.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
-      # Pick whichever package manager exists on the runner
+      # Use whatever package manager exists
       if command -v dnf >/dev/null 2>&1; then
         dnf install -y nodejs
       elif command -v yum >/dev/null 2>&1; then
@@ -72,4 +72,3 @@ steps:
         --content-type auto \
         --verify-checksum
       echo "✅ Upload completed to bucket ${BUCKET_NAME}"
-
