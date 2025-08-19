@@ -6,7 +6,7 @@ shell: bash
 
 env:
   variables:
-    NODE_MAJOR: "22"               # 18/20/22 según tu proyecto
+    NODE_MAJOR: "20"               # 18/20/22 según tu proyecto
     BUCKET_NAME: "my-react-site"   # bucket de Object Storage
 
 steps:
@@ -67,4 +67,5 @@ steps:
         --content-type auto \
         --verify-checksum
       echo "✅ Upload completed to bucket ${BUCKET_NAME}"
+
 
