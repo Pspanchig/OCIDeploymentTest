@@ -6,8 +6,8 @@ shell: bash
 
 env:
   variables:
-    NODE_MAJOR: "20"               # 18/20/22 según tu proyecto
-    BUCKET_NAME: "my-react-site"   # bucket de Object Storage
+    NODE_MAJOR: "20"
+    BUCKET_NAME: "my-react-site"
 
 steps:
   - name: Métricas iniciales (CPU/RAM/Disco)
@@ -20,29 +20,25 @@ steps:
       echo "Disco:"; df -h || true
       echo "Top snapshot:"; top -b -n 1 | head -n 20 || true
 
-  - name: Instalar Node.js con nvm
+  - name: Instalar Node.js
     type: Command
     command: |
-      curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh -o /tmp/install-nvm.sh
-      bash /tmp/install-nvm.sh
-      export NVM_DIR="$HOME/.nvm"
-      . "$NVM_DIR/nvm.sh"
-      nvm install 22
-      nvm use 22
+      set -euo pipefail
+      echo "Installing Node.js ${NODE_MAJOR} on OL8..."
+      curl -fsSL https://rpm.nodesource.com/setup_${NODE_MAJOR}.x | bash -
+      dnf install -y nodejs
       node -v && npm -v
 
   - name: Instalar dependencias
     type: Command
     command: |
       set -euo pipefail
-      export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use default
       if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
   - name: Compilar aplicación
     type: Command
     command: |
       set -euo pipefail
-      export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; nvm use default
       npm run build
 
   - name: Métricas post-build
@@ -58,7 +54,6 @@ steps:
     command: |
       set -euo pipefail
       export OCI_CLI_AUTH=resource_principal
-      # opcional: limpiar bucket antes de subir
       oci os object bulk-delete -bn "${BUCKET_NAME}" --force --quiet || true
       oci os object bulk-upload \
         -bn "${BUCKET_NAME}" \
@@ -67,5 +62,3 @@ steps:
         --content-type auto \
         --verify-checksum
       echo "✅ Upload completed to bucket ${BUCKET_NAME}"
-
-
