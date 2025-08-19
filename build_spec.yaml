@@ -20,13 +20,23 @@ steps:
       echo "Disco:"; df -h || true
       echo "Top snapshot:"; top -b -n 1 | head -n 20 || true
 
-  - name: Instalar Node.js
+- name: Instalar Node.js
     type: Command
     command: |
       set -euo pipefail
-      echo "Installing Node.js ${NODE_MAJOR} on OL8..."
-      curl -fsSL https://rpm.nodesource.com/setup_${NODE_MAJOR}.x | bash -
-      dnf install -y nodejs
+      echo "Installing Node.js ${NODE_MAJOR}..."
+      # Add NodeSource repo for RHEL/Oracle-Linux family
+      curl -fsSL "https://rpm.nodesource.com/setup_${NODE_MAJOR}.x" | bash -
+      # Pick whichever package manager exists on the runner
+      if command -v dnf >/dev/null 2>&1; then
+        dnf install -y nodejs
+      elif command -v yum >/dev/null 2>&1; then
+        yum install -y nodejs
+      elif command -v microdnf >/dev/null 2>&1; then
+        microdnf install -y nodejs
+      else
+        echo "No supported package manager found (dnf/yum/microdnf)"; exit 1
+      fi
       node -v && npm -v
 
   - name: Instalar dependencias
@@ -62,3 +72,4 @@ steps:
         --content-type auto \
         --verify-checksum
       echo "✅ Upload completed to bucket ${BUCKET_NAME}"
+
